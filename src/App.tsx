@@ -90,6 +90,7 @@ function App() {
   const [netWorths, setNetWorths] = useState<NetWorthDay[]>([]);
   const [cadBtcExchangeRates, setCadBtcExchangeRates] = useState<ExchangeRate[]>([]);
   const [cadEthExchangeRates, setCadEthExchangeRates] = useState<ExchangeRate[]>([]);
+  const [selectedTimeScale, setSelectedTimeScale] = useState<'all-time' | 'past-year' | 'past-month'>('all-time');
 
   useEffect(() => {
     // sorted from earliest to latest
@@ -169,8 +170,7 @@ function App() {
 
         setNetWorths(netWorthPerDayFromFirstToLastTransaction)
       });
-  }, [])
-
+  }, []);
 
   if (netWorths.length === 0 || cadBtcExchangeRates.length === 0 || cadEthExchangeRates.length === 0) {
     return (
@@ -179,17 +179,31 @@ function App() {
       </div>
     );
   } else {
+    let startingIndex: number;
+
+    if (selectedTimeScale === 'past-month') {
+      startingIndex = netWorths.length - 30;
+    } else if (selectedTimeScale == 'past-year') {
+      startingIndex = netWorths.length - 365;
+    } else {
+      startingIndex = 0;
+    }
+
     return (
       <div className='App'>
         <Line data={{
-          labels: netWorths.map(netWorth => new Date(netWorth.time).toLocaleDateString()),
+          labels: netWorths.map(netWorth => new Date(netWorth.time).toLocaleDateString()).slice(startingIndex),
           datasets: [
             {
               label: 'net worth CAD',
-              data: netWorths.map(netWorth => netWorth.value)
+              data: netWorths.map(netWorth => netWorth.value).slice(startingIndex)
             }
           ]
         }} />
+
+        <button className={selectedTimeScale === 'all-time' ? 'outline-black' : ''} onClick={() => setSelectedTimeScale('all-time')}>All time</button>
+        <button className={selectedTimeScale === 'past-year' ? 'outline-black' : ''} onClick={() => setSelectedTimeScale('past-year')}>Past Year</button>
+        <button className={selectedTimeScale === 'past-month' ? 'outline-black' : ''} onClick={() => setSelectedTimeScale('past-month')}>Past Month</button>
       </div>
     )
   }
