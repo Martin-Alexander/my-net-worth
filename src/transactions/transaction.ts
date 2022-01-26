@@ -70,6 +70,6 @@ export class Transaction {
       this._createdAtCached = new Date(this._createdAt);
     } 
 
-    return new Date(this._createdAtCached);
+    return this._createdAtCached;
   }
 }

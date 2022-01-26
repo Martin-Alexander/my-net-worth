@@ -126,7 +126,7 @@ function App() {
           }
         });
 
-        const walletAtTimes: HistoricalWallet[] = [];
+        const historicalWallets: HistoricalWallet[] = [];
 
         transactions.forEach((transaction) => {
           if (transaction.isConversion()) {
@@ -142,7 +142,7 @@ function App() {
             }
           }
 
-          walletAtTimes.push({
+          historicalWallets.push({
             time: transaction.getCreatedAt(),
             btc_amount: currentWallet[Currency.BTC],
             cad_amount: currentWallet[Currency.CAD],
@@ -157,7 +157,7 @@ function App() {
         const netWorthPerDayFromFirstToLastTransaction: NetWorthDay[] = [];
 
         for (let currentDate = dateOfFirstTransaction; currentDate < dateOfLastTransaction; currentDate = new Date(currentDate.getTime() + oneDay)) {
-          const walletAtTime = getHistoricalWallet(currentDate, walletAtTimes);
+          const walletAtTime = getHistoricalWallet(currentDate, historicalWallets);
 
           const btcValueInCad = getValueInCad(walletAtTime.btc_amount, currentDate, cadBtcExchangeRates);
           const ethValueInCad = getValueInCad(walletAtTime.eth_amount, currentDate, cadEthExchangeRates);
@@ -195,7 +195,7 @@ function App() {
           labels: netWorths.map(netWorth => new Date(netWorth.time).toLocaleDateString()).slice(startingIndex),
           datasets: [
             {
-              label: 'net worth CAD',
+              label: 'Historical net worth (CAD)',
               data: netWorths.map(netWorth => netWorth.value).slice(startingIndex)
             }
           ]
