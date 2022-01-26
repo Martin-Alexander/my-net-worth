@@ -11,9 +11,9 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
-import { Transaction, TransactionParams, TransactionType } from './records/transaction';
-import { PaymentTransaction } from './records/paymentTransaction';
-import { ConversionTransaction } from './records/conversionTransaction';
+import { Transaction, TransactionParams, TransactionType } from './transactions/transaction';
+import { PaymentTransaction } from './transactions/paymentTransaction';
+import { ConversionTransaction } from './transactions/conversionTransaction';
 
 ChartJS.register(
   CategoryScale,
@@ -25,16 +25,10 @@ ChartJS.register(
   Legend
 )
 
-
 export enum Currency {
   CAD = 'CAD',
   BTC = 'BTC',
   ETH = 'ETH'
-}
-
-interface NetWorthChange {
-  value: number;
-  time: Date;
 }
 
 interface NetWorthDay {
@@ -43,72 +37,53 @@ interface NetWorthDay {
 }
 
 interface ExchangeRate {
-  pair: 'CAD_BTC';
+  pair: 'CAD_BTC' | 'CAD_ETH';
   midMarketRate: number;
   createdAt: string;
 }
 
-const exchangeRates = {
-  CAD_BTC: 0.00002151,
-  BTC_CAD: 46472.34,
-  CAD_ETH: 0.000324136057692875,
-  ETH_CAD: 3085.12,
-  USD_BTC: 0.00002716,
-  BTC_USD: 36810.04,
-  USD_ETH: 0.000409233117599274,
-  ETH_USD: 2443.59,
-  BTC_ETH: 15.062509414068384,
-  ETH_BTC: 0.06639,
-  CAD_USD: 0.79,
-  USD_CAD: 1.26
-}
-
 const oneDay = 86400000;
 
-// lock this down edge cases
-// Assumes dynamicExchangeRates is sorted by time
-const getValueInCad = (amount: number, currency: Currency, time?: Date, dynamicExchangeRates?: ExchangeRate[]): number => {
-  if (time && dynamicExchangeRates) {
-    const firstDynamicExchangeRatesAfterTime = dynamicExchangeRates.find((dynamicExchangeRate) => {
-      if (new Date(dynamicExchangeRate.createdAt) >= time) {
-        return true;
-      } else {
-        return false;
-      }
-    });
-
-    if (firstDynamicExchangeRatesAfterTime) {
-      return amount * firstDynamicExchangeRatesAfterTime.midMarketRate;
-    } else {
-      return 0;
-    }
-
-  } else {
-    switch(currency) {
-      case Currency.BTC: return amount * exchangeRates.BTC_CAD;
-      case Currency.ETH: return amount * exchangeRates.ETH_CAD;
-      case Currency.CAD: return amount;
-      default: return 0;
-    }
-  }
-}
-
-// More efficient algo possible
-// Assumes netWorthChanges is sorted by time
-const getNetWorthAtTime = (time: Date, netWorthChanges: NetWorthChange[]): number => {
-  const firstNetWorthChangeAfterTime = netWorthChanges.find((networthChange) => {
-    if (networthChange.time >= time) {
+// Assumes historicalExchangeRates is sorted from ealiest to latest
+const getValueInCad = (amount: number, time: Date, historicalExchangeRates: ExchangeRate[]): number => {
+  const firstHistoricalExchangeRateAfterTime = historicalExchangeRates.find((dynamicExchangeRate) => {
+    if (new Date(dynamicExchangeRate.createdAt) >= time) {
       return true;
     } else {
       return false;
     }
   });
 
-  if (firstNetWorthChangeAfterTime) {
-    return firstNetWorthChangeAfterTime.value;
+  if (firstHistoricalExchangeRateAfterTime) {
+    return amount * firstHistoricalExchangeRateAfterTime.midMarketRate;
   } else {
     return 0;
   }
+}
+
+// Assumes walletAtTimes is sorted from ealiest to latest
+const getHistoricalWallet = (time: Date, walletAtTimes: HistoricalWallet[]): HistoricalWallet => {
+  const foundWallet = walletAtTimes.find((walletAtTimes) => {
+    if (walletAtTimes.time >= time) {
+      return true;
+    } else {
+      return false;
+    }
+  });
+
+  if (foundWallet) {
+    return foundWallet;
+  } else {
+    throw new Error();
+  }
+}
+
+// A snapshot of your wallet at a specific time
+interface HistoricalWallet {
+  cad_amount: number;
+  eth_amount: number;
+  btc_amount: number;
+  time: Date;
 }
 
 function App() {
@@ -117,65 +92,61 @@ function App() {
   const [cadEthExchangeRates, setCadEthExchangeRates] = useState<ExchangeRate[]>([]);
 
   useEffect(() => {
+    // sorted from earliest to latest
     fetch('https://shakepay.github.io/programming-exercise/web/rates_CAD_BTC.json')
       .then(repsonse => repsonse.json())
       .then(setCadBtcExchangeRates);
   }, []);
 
   useEffect(() => {
+    // sorted from earliest to latest
     fetch('https://shakepay.github.io/programming-exercise/web/rates_CAD_ETH.json')
       .then(repsonse => repsonse.json())
       .then(setCadEthExchangeRates);
   }, []);
 
-  const getHistoricalExchangeRate = (currency: Currency): ExchangeRate[] => {
-    if (currency === Currency.BTC) {
-      return cadBtcExchangeRates;
-    } else if (currency === Currency.ETH) {
-      return cadEthExchangeRates;
-    } else {
-      return [];
-    }
-  }
-
   useEffect(() => {
+    const currentWallet = {
+      [Currency.CAD]: 0,
+      [Currency.ETH]: 0,
+      [Currency.BTC]: 0
+    }
+
     fetch('https://shakepay.github.io/programming-exercise/web/transaction_history.json')
       .then(repsonse => repsonse.json())
       .then((data: TransactionParams[]) => {
 
-        const transactions: Array<ConversionTransaction | PaymentTransaction> = Transaction.sortByCreatedAt(data.map((transactionParam) => {
+        // use #reverse() to sort from earliest to latest
+        const transactions: Array<ConversionTransaction | PaymentTransaction> = data.reverse().map((transactionParam) => {
           if (transactionParam.type === TransactionType.Conversion) {
             return new ConversionTransaction(transactionParam)
           } else {
             return new PaymentTransaction(transactionParam);
           }
-        }));
+        });
 
-        let currentNetWorthInCad: number = 0;
-
-        const netWorthChanges: NetWorthChange[] = [];
+        const walletAtTimes: HistoricalWallet[] = [];
 
         transactions.forEach((transaction) => {
           if (transaction.isConversion()) {
-            const fromValue = getValueInCad(transaction.from.amount, transaction.from.currency);
-            const toValue = getValueInCad(transaction.to.amount, transaction.to.currency);
-
-            currentNetWorthInCad -= fromValue;
-            currentNetWorthInCad += toValue;
+            currentWallet[transaction.from.currency] -= transaction.from.amount;
+            currentWallet[transaction.to.currency] += transaction.to.amount;
           } else {
             if (transaction.isCredit()) {
-              currentNetWorthInCad += getValueInCad(transaction.amount, transaction.currency);
+              currentWallet[transaction.currency] += transaction.amount
             } else if (transaction.isDebit()) {
-              currentNetWorthInCad -= getValueInCad(transaction.amount, transaction.currency);
+              currentWallet[transaction.currency] -= transaction.amount
             } else {
               throw new Error();
             }
           }
 
-          netWorthChanges.push({
-            value: currentNetWorthInCad,
-            time: transaction.getCreatedAt()
-          });
+          walletAtTimes.push({
+            time: transaction.getCreatedAt(),
+            btc_amount: currentWallet[Currency.BTC],
+            cad_amount: currentWallet[Currency.CAD],
+            eth_amount: currentWallet[Currency.ETH]
+          })
         });
 
         const dateOfFirstTransaction: Date = new Date(transactions[0].getCreatedAt());
@@ -185,11 +156,14 @@ function App() {
         const netWorthPerDayFromFirstToLastTransaction: NetWorthDay[] = [];
 
         for (let currentDate = dateOfFirstTransaction; currentDate < dateOfLastTransaction; currentDate = new Date(currentDate.getTime() + oneDay)) {
-          const netWorth = getNetWorthAtTime(currentDate, netWorthChanges);
+          const walletAtTime = getHistoricalWallet(currentDate, walletAtTimes);
+
+          const btcValueInCad = getValueInCad(walletAtTime.btc_amount, currentDate, cadBtcExchangeRates);
+          const ethValueInCad = getValueInCad(walletAtTime.eth_amount, currentDate, cadEthExchangeRates);
 
           netWorthPerDayFromFirstToLastTransaction.push({
             time: currentDate,
-            value: netWorth
+            value: btcValueInCad + ethValueInCad + walletAtTime.cad_amount
           });
         }
 

@@ -33,10 +33,6 @@ export interface TransactionParams {
 }
 
 export class Transaction {
-  public static sortByCreatedAt(transactions: Array<ConversionTransaction | PaymentTransaction>): Array<ConversionTransaction | PaymentTransaction> {
-    return transactions.sort((a, b) => a.getCreatedAt().getTime() - b.getCreatedAt().getTime());
-  }
-
   private _createdAt: string;
   private _createdAtCached: Date | null;
   readonly amount: number;
