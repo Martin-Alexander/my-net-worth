@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/my-net-worth/static/css/main.073c9b0a.css",
+    "main.js": "/my-net-worth/static/js/main.cc49794c.js",
+    "static/js/787.f7efff4f.chunk.js": "/my-net-worth/static/js/787.f7efff4f.chunk.js",
+    "index.html": "/my-net-worth/index.html",
+    "main.073c9b0a.css.map": "/my-net-worth/static/css/main.073c9b0a.css.map",
+    "main.cc49794c.js.map": "/my-net-worth/static/js/main.cc49794c.js.map",
+    "787.f7efff4f.chunk.js.map": "/my-net-worth/static/js/787.f7efff4f.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.073c9b0a.css",
+    "static/js/main.cc49794c.js"
+  ]
+}
